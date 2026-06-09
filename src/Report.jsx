@@ -1,17 +1,16 @@
 import React, { useState, useEffect } from 'react'
 import { supabase } from './supabaseClient'
 import { jsPDF } from 'jspdf'
-import 'jspdf-autotable'
+import autoTable from 'jspdf-autotable' // <-- Ye line important hai
 import { FileText, Download, Calendar, Clock, AlertCircle, RefreshCw } from 'lucide-react'
 
 export default function Report({ user }) {
-  const [selectedMonth, setSelectedMonth] = useState('') // Format: YYYY-MM
+  const [selectedMonth, setSelectedMonth] = useState('')
   const [reportLogs, setReportLogs] = useState([])
   const [totalMinutes, setTotalMinutes] = useState(0)
   const [loading, setLoading] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
 
-  // Set default month to current month on mount
   useEffect(() => {
     const today = new Date()
     const yyyy = today.getFullYear()
@@ -19,7 +18,6 @@ export default function Report({ user }) {
     setSelectedMonth(`${yyyy}-${mm}`)
   }, [])
 
-  // Fetch report data when selectedMonth changes
   useEffect(() => {
     if (selectedMonth && user) {
       fetchReportData()
@@ -34,23 +32,20 @@ export default function Report({ user }) {
       const year = parseInt(yearStr, 10)
       const month = parseInt(monthStr, 10)
 
-      // Start and end dates for the month
       const start = `${yearStr}-${monthStr}-01`
       const lastDay = new Date(year, month, 0).getDate()
       const end = `${yearStr}-${monthStr}-${String(lastDay).padStart(2, '0')}`
 
-      // Fetch logs from database
       const { data, error } = await supabase
-        .from('overtime_logs')
-        .select('*')
-        .eq('user_id', user.id)
-        .gte('date', start)
-        .lte('date', end)
-        .order('date', { ascending: true })
+     .from('overtime_logs')
+     .select('*')
+     .eq('user_id', user.id)
+     .gte('date', start)
+     .lte('date', end)
+     .order('date', { ascending: true })
 
       if (error) throw error
 
-      // Group logs by date
       const logsByDate = {}
       data?.forEach((log) => {
         if (!logsByDate[log.date]) {
@@ -59,7 +54,6 @@ export default function Report({ user }) {
         logsByDate[log.date].push(log)
       })
 
-      // Generate all dates in the month (No Missing Days)
       const fullMonthLogs = []
       let totalMins = 0
 
@@ -69,13 +63,12 @@ export default function Report({ user }) {
         if (logsByDate[dateStr]) {
           logsByDate[dateStr].forEach((log) => {
             fullMonthLogs.push({
-              ...log,
+           ...log,
               isPadded: false,
             })
             totalMins += log.duration_minutes || 0
           })
         } else {
-          // Pad empty day
           fullMonthLogs.push({
             id: `report-padded-${dateStr}`,
             date: dateStr,
@@ -105,64 +98,71 @@ export default function Report({ user }) {
     return `${hrs}h ${mins}m`
   }
 
+  const formatTimeForDisplay = (timeStr) => {
+    if (!timeStr) return '--'
+    if (typeof timeStr === 'string' && (timeStr.includes('T') || timeStr.includes('+'))) {
+      try {
+        const date = new Date(timeStr)
+        return date.toLocaleTimeString('en-US', {
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: false
+        })
+      } catch {
+        return '--'
+      }
+    }
+    return timeStr
+  }
+
   const handleDownloadPDF = () => {
     try {
+      setErrorMsg('')
       const doc = new jsPDF()
 
-      // Header block styling
-      doc.setFillColor(15, 23, 42) // Slate 900
+      doc.setFillColor(15, 23, 42)
       doc.rect(0, 0, 210, 45, 'F')
 
-      // Title
       doc.setTextColor(255, 255, 255)
       doc.setFont('helvetica', 'bold')
       doc.setFontSize(22)
       doc.text('OVERTIME TRACKER REPORT', 15, 20)
 
-      // Subtitle / Date details
       doc.setFontSize(10)
       doc.setFont('helvetica', 'normal')
-      doc.setTextColor(16, 185, 129) // Emerald color indicator
+      doc.setTextColor(16, 185, 129)
       doc.text('VIP SYSTEM VERIFIED DOCUMENT', 15, 27)
 
-      // Right metadata block
       doc.setTextColor(255, 255, 255)
       const [y, m] = selectedMonth.split('-')
       const monthLabel = new Date(y, m - 1).toLocaleString('default', { month: 'long', year: 'numeric' })
       doc.text(`Month: ${monthLabel}`, 140, 20)
       doc.text(`Total Duration: ${formatMinutes(totalMinutes)}`, 140, 27)
-      
-      // Bottom line in header
-      doc.setFillColor(16, 185, 129) // Emerald 500
+
+      doc.setFillColor(16, 185, 129)
       doc.rect(0, 43, 210, 2, 'F')
 
-      // Metadata info table
-      doc.setTextColor(51, 65, 85) // Slate 700
+      doc.setTextColor(51, 65, 85)
       doc.setFontSize(9)
       doc.text(`Report For: ${user.email}`, 15, 53)
       doc.text(`Generated On: ${new Date().toLocaleString()}`, 15, 58)
 
-      // Table formatting
       const tableRows = reportLogs.map((log) => {
         const dateFormatted = new Date(log.date).toLocaleDateString('en-US', {
           month: 'short',
           day: 'numeric',
           year: 'numeric',
         })
-        const checkIn = log.check_in_time
-          ? new Date(log.check_in_time).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
-          : '--'
-        const checkOut = log.check_out_time
-          ? new Date(log.check_out_time).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
-          : '--'
-        const duration = log.duration_minutes ? formatMinutes(log.duration_minutes) : '0h 0m'
-        const desc = log.description || (log.isPadded ? 'Off day' : '-')
+        const checkIn = formatTimeForDisplay(log.check_in_time)
+        const checkOut = formatTimeForDisplay(log.check_out_time)
+        const duration = log.duration_minutes? formatMinutes(log.duration_minutes) : '0h 0m'
+        const desc = log.description || (log.isPadded? 'Off day' : '-')
 
-        return [dateFormatted, log.isPadded ? 'OFF DAY' : 'OVERTIME', checkIn, checkOut, duration, desc]
+        return [dateFormatted, log.isPadded? 'OFF DAY' : 'OVERTIME', checkIn, checkOut, duration, desc]
       })
 
-      // Generate AutoTable
-      doc.autoTable({
+      // YAHAN FIX HAI: autoTable(doc, {...}) use karo
+      autoTable(doc, {
         startY: 65,
         head: [['Date', 'Status', 'Check-In', 'Check-Out', 'Duration', 'Task / Description']],
         body: tableRows,
@@ -181,29 +181,27 @@ export default function Report({ user }) {
           fillColor: [248, 250, 252],
         },
         columnStyles: {
-          4: { halign: 'right', fontStyle: 'bold' }, // Duration column
-          5: { cellWidth: 50 }, // Description column limit
+          4: { halign: 'right', fontStyle: 'bold' },
+          5: { cellWidth: 50 },
         },
         margin: { left: 15, right: 15 },
         theme: 'striped',
       })
 
-      // Save PDF
       doc.save(`Overtime_Report_${selectedMonth}.pdf`)
     } catch (err) {
-      console.error(err)
-      setErrorMsg('Could not export PDF. Please check data format.')
+      console.error('PDF Error:', err)
+      setErrorMsg(`PDF Error: ${err.message}`)
     }
   }
 
-  const [y, m] = selectedMonth ? selectedMonth.split('-') : ['', '']
-  const monthName = selectedMonth ? new Date(y, m - 1).toLocaleString('default', { month: 'long', year: 'numeric' }) : ''
+  const [y, m] = selectedMonth? selectedMonth.split('-') : ['', '']
+  const monthName = selectedMonth? new Date(y, m - 1).toLocaleString('default', { month: 'long', year: 'numeric' }) : ''
 
   return (
     <div className="space-y-8 animate-fade-in">
-      {/* Header Info */}
       <div className="glass rounded-3xl p-6 md:p-8 relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-cyan-500/5 rounded-full blur-[60px] pointer-events-none"></div>
+        <div className="absolute top-0 right-0 w-64 h-64 bg-cyan-500/5 rounded-full blur- pointer-events-none"></div>
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div>
             <h1 className="text-3xl font-extrabold tracking-tight text-slate-100 flex items-center gap-3">
@@ -215,7 +213,6 @@ export default function Report({ user }) {
             </p>
           </div>
 
-          {/* Month Picker Control */}
           <div className="flex flex-col gap-1.5 self-start md:self-auto min-w-[200px]">
             <label className="text-slate-400 text-xs font-bold uppercase tracking-wider">Select Month</label>
             <div className="relative">
@@ -225,7 +222,7 @@ export default function Report({ user }) {
                 onChange={(e) => setSelectedMonth(e.target.value)}
                 className="w-full bg-slate-900 border border-slate-800 rounded-xl py-3 px-4 pl-10 text-slate-100 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition duration-200"
               />
-              <Calendar className="w-4.5 h-4.5 text-slate-650 absolute left-3.5 top-3.5" />
+              <Calendar className="w-4 h-4 text-slate-500 absolute left-3.5 top-3.5" />
             </div>
           </div>
         </div>
@@ -238,9 +235,7 @@ export default function Report({ user }) {
         </div>
       )}
 
-      {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Total Overtime */}
         <div className="glass rounded-3xl p-6 flex items-center justify-between relative overflow-hidden">
           <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-500/5 rounded-full blur-2xl pointer-events-none"></div>
           <div className="space-y-1">
@@ -254,7 +249,6 @@ export default function Report({ user }) {
           </div>
         </div>
 
-        {/* Download Button Card */}
         <div className="glass rounded-3xl p-6 flex items-center justify-between relative overflow-hidden">
           <div className="absolute top-0 right-0 w-24 h-24 bg-cyan-500/5 rounded-full blur-2xl pointer-events-none"></div>
           <div className="space-y-1">
@@ -272,7 +266,6 @@ export default function Report({ user }) {
         </div>
       </div>
 
-      {/* Preview Section */}
       <div className="glass rounded-3xl p-6 md:p-8">
         <div className="flex justify-between items-center mb-6 border-b border-slate-900 pb-4">
           <h2 className="text-xl font-bold text-slate-100 flex items-center gap-2">
@@ -282,11 +275,11 @@ export default function Report({ user }) {
           {loading && <RefreshCw className="w-5 h-5 text-emerald-400 animate-spin" />}
         </div>
 
-        {loading ? (
+        {loading? (
           <div className="py-20 flex justify-center">
             <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
           </div>
-        ) : reportLogs.length === 0 ? (
+        ) : reportLogs.length === 0? (
           <div className="py-20 text-center text-slate-500 italic text-sm">
             Select a month to load previews.
           </div>
@@ -305,54 +298,40 @@ export default function Report({ user }) {
               </thead>
               <tbody className="divide-y divide-slate-850">
                 {reportLogs.map((log) => (
-                  <tr 
-                    key={log.id} 
+                  <tr
+                    key={log.id}
                     className={`hover:bg-slate-900/30 transition-colors ${
-                      log.isPadded ? 'text-slate-650 bg-slate-950/10' : 'text-slate-100'
+                      log.isPadded? 'text-slate-600 bg-slate-950/10' : 'text-slate-100'
                     }`}
                   >
                     <td className="py-3.5 font-semibold">
-                      {new Date(log.date).toLocaleDateString('en-US', { 
-                        weekday: 'short', 
-                        month: 'short', 
-                        day: 'numeric' 
+                      {new Date(log.date).toLocaleDateString('en-US', {
+                        weekday: 'short',
+                        month: 'short',
+                        day: 'numeric'
                       })}
                     </td>
                     <td>
-                      {log.isPadded ? (
-                        <span className="bg-slate-900 text-slate-600 text-[10px] font-bold px-2 py-0.5 rounded-full border border-slate-850">
+                      {log.isPadded? (
+                        <span className="bg-slate-900 text-slate-600 text- font-bold px-2 py-0.5 rounded-full border border-slate-850">
                           OFF
                         </span>
                       ) : (
-                        <span className="bg-emerald-500/10 text-emerald-400 text-[10px] font-bold px-2 py-0.5 rounded-full border border-emerald-500/20">
+                        <span className="bg-emerald-500/10 text-emerald-400 text- font-bold px-2 py-0.5 rounded-full border border-emerald-500/20">
                           OVERTIME
                         </span>
                       )}
                     </td>
                     <td className="font-mono">
-                      {log.check_in_time ? (
-                        new Date(log.check_in_time).toLocaleTimeString('en-US', { 
-                          hour: '2-digit', 
-                          minute: '2-digit' 
-                        })
-                      ) : (
-                        <span className="text-slate-800">--:--</span>
-                      )}
+                      {formatTimeForDisplay(log.check_in_time)}
                     </td>
                     <td className="font-mono">
-                      {log.check_out_time ? (
-                        new Date(log.check_out_time).toLocaleTimeString('en-US', { 
-                          hour: '2-digit', 
-                          minute: '2-digit' 
-                        })
-                      ) : (
-                        <span className="text-slate-800">--:--</span>
-                      )}
+                      {formatTimeForDisplay(log.check_out_time)}
                     </td>
-                    <td className={`font-mono font-bold text-right ${log.duration_minutes > 0 ? 'text-emerald-400' : 'text-slate-700'}`}>
-                      {log.duration_minutes ? formatMinutes(log.duration_minutes) : '0h 0m'}
+                    <td className={`font-mono font-bold text-right ${log.duration_minutes > 0? 'text-emerald-400' : 'text-slate-700'}`}>
+                      {log.duration_minutes? formatMinutes(log.duration_minutes) : '0h 0m'}
                     </td>
-                    <td className={`pl-6 max-w-[180px] truncate text-xs ${log.isPadded ? 'italic text-slate-700' : 'text-slate-400'}`}>
+                    <td className={`pl-6 max-w-[180px] truncate text-xs ${log.isPadded? 'italic text-slate-700' : 'text-slate-400'}`}>
                       {log.description || '-'}
                     </td>
                   </tr>
