@@ -30,7 +30,7 @@ export default function Report({ user }) {
     const mm = String(today.getMonth() + 1).padStart(2, '0')
     setSelectedMonth(`${yyyy}-${mm}`)
     if (user?.id) fetchUserProfile()
-  }, [user]) // ✅ FIXED: [] ki jagah [user] taake login ke baad 1 bar chale
+  }, []) // ✅ FIXED: [user] ki jagah [] - sirf 1 bar chalega
 
   useEffect(() => {
     if (selectedMonth && user) {
@@ -48,10 +48,10 @@ export default function Report({ user }) {
 
     try {
       const { data, error } = await supabase
-      .from('user_profiles')
-      .select('full_name, employee_id')
-      .eq('user_id', user.id)
-      .maybeSingle()
+     .from('user_profiles')
+     .select('full_name, employee_id')
+     .eq('user_id', user.id)
+     .maybeSingle()
 
       if (error) throw error
 
@@ -59,10 +59,9 @@ export default function Report({ user }) {
         setFullName(data.full_name || '')
         setEmployeeId(data.employee_id || '')
       } else {
-        // ✅ Row nahi mili to auto create
         await supabase
-        .from('user_profiles')
-        .insert({ user_id: user.id, full_name: '', employee_id: '', role: 'user' })
+       .from('user_profiles')
+       .insert({ user_id: user.id, full_name: '', employee_id: '', role: 'user' })
         setFullName('')
         setEmployeeId('')
       }
@@ -88,8 +87,8 @@ export default function Report({ user }) {
 
     try {
       const { error } = await supabase
-      .from('user_profiles')
-      .upsert({
+     .from('user_profiles')
+     .upsert({
           user_id: user.id,
           full_name: fullName.trim(),
           employee_id: employeeId.trim(),
@@ -122,12 +121,12 @@ export default function Report({ user }) {
       const end = `${yearStr}-${monthStr}-${String(lastDay).padStart(2, '0')}`
 
       const { data, error } = await supabase
-      .from('overtime_logs')
-      .select('*')
-      .eq('user_id', user.id)
-      .gte('date', start)
-      .lte('date', end)
-      .order('date', { ascending: true })
+     .from('overtime_logs')
+     .select('*')
+     .eq('user_id', user.id)
+     .gte('date', start)
+     .lte('date', end)
+     .order('date', { ascending: true })
 
       if (error) throw error
 
@@ -148,7 +147,7 @@ export default function Report({ user }) {
         if (logsByDate[dateStr]) {
           logsByDate[dateStr].forEach((log) => {
             fullMonthLogs.push({
-            ...log,
+           ...log,
               isPadded: false,
             })
             totalMins += log.duration_minutes || 0
@@ -255,8 +254,8 @@ export default function Report({ user }) {
 
       if (isPadded) {
         const { error } = await supabase
-        .from('overtime_logs')
-        .insert({
+       .from('overtime_logs')
+       .insert({
             user_id: user.id,
             date: log.date,
             check_in_time: checkInTimestamp,
@@ -269,15 +268,15 @@ export default function Report({ user }) {
         setSuccessMsg('Time added successfully')
       } else {
         const { error } = await supabase
-        .from('overtime_logs')
-        .update({
+       .from('overtime_logs')
+       .update({
             check_in_time: checkInTimestamp,
             check_out_time: checkOutTimestamp,
             duration_minutes: duration_minutes,
             description: editTimes.description || log.description
           })
-        .eq('id', editingId)
-        .eq('user_id', user.id)
+       .eq('id', editingId)
+       .eq('user_id', user.id)
 
         if (error) throw error
         setSuccessMsg('Time updated successfully')
@@ -303,10 +302,10 @@ export default function Report({ user }) {
 
     try {
       const { error } = await supabase
-      .from('overtime_logs')
-      .delete()
-      .eq('id', logId)
-      .eq('user_id', user.id)
+     .from('overtime_logs')
+     .delete()
+     .eq('id', logId)
+     .eq('user_id', user.id)
 
       if (error) throw error
 
@@ -371,7 +370,7 @@ export default function Report({ user }) {
         })
 
         if (log.isPadded) {
-          return [dateFormatted, '--', '--', '--']
+          return [dateFormatted, '--', '--', '--', '--', '--']
         }
 
         const checkIn = formatTimeForDisplay(log.check_in_time)
@@ -437,7 +436,6 @@ export default function Report({ user }) {
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
               placeholder="Ali Khan"
-              // ✅ FIXED: disabled hata diya - ab hamesha type kar sakte ho
               className="w-full bg-slate-900 border border-slate-800 rounded-xl py-3 px-4 text-slate-100 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition duration-200"
             />
           </div>
@@ -449,7 +447,6 @@ export default function Report({ user }) {
               value={employeeId}
               onChange={(e) => setEmployeeId(e.target.value)}
               placeholder="EMP-001"
-              // ✅ FIXED: disabled hata diya
               className="w-full bg-slate-900 border border-slate-800 rounded-xl py-3 px-4 text-slate-100 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition duration-200"
             />
           </div>
