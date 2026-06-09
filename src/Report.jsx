@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { supabase } from './supabaseClient'
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
-import { FileText, Download, Calendar, Clock, AlertCircle, RefreshCw, User, Save, CheckCircle } from 'lucide-react'
+import { FileText, Download, Calendar, Clock, AlertCircle, RefreshCw, User, Save, CheckCircle, Edit2, X } from 'lucide-react'
 
 export default function Report({ user }) {
   const [selectedMonth, setSelectedMonth] = useState('')
@@ -17,6 +17,11 @@ export default function Report({ user }) {
   const [employeeId, setEmployeeId] = useState('')
   const [savingProfile, setSavingProfile] = useState(false)
   const [profileLoading, setProfileLoading] = useState(true)
+
+  // Edit states
+  const [editingId, setEditingId] = useState(null)
+  const [editTimes, setEditTimes] = useState({ check_in_time: '', check_out_time: '' })
+  const [savingEdit, setSavingEdit] = useState(false)
 
   useEffect(() => {
     const today = new Date()
@@ -130,7 +135,7 @@ export default function Report({ user }) {
         if (logsByDate[dateStr]) {
           logsByDate[dateStr].forEach((log) => {
             fullMonthLogs.push({
-       ...log,
+      ...log,
               isPadded: false,
             })
             totalMins += log.duration_minutes || 0
@@ -180,6 +185,73 @@ export default function Report({ user }) {
       }
     }
     return timeStr
+  }
+
+  const startEdit = (log) => {
+    setEditingId(log.id)
+    setEditTimes({
+      check_in_time: log.check_in_time || '',
+      check_out_time: log.check_out_time || ''
+    })
+    setErrorMsg('')
+  }
+
+  const cancelEdit = () => {
+    setEditingId(null)
+    setEditTimes({ check_in_time: '', check_out_time: '' })
+  }
+
+  const saveEdit = async () => {
+    if (!editTimes.check_in_time ||!editTimes.check_out_time) {
+      setErrorMsg('Both Check-In and Check-Out times are required')
+      setTimeout(() => setErrorMsg(''), 3000)
+      return
+    }
+
+    setSavingEdit(true)
+    setErrorMsg('')
+
+    try {
+      const log = reportLogs.find(l => l.id === editingId)
+
+      const start = new Date(`${log.date}T${editTimes.check_in_time}`)
+      const end = new Date(`${log.date}T${editTimes.check_out_time}`)
+
+      if (editTimes.check_out_time < editTimes.check_in_time) end.setDate(end.getDate() + 1)
+
+      const diffMs = end - start
+      const duration_minutes = Math.round(diffMs / 1000 / 60)
+
+      if (duration_minutes < 0) {
+        setErrorMsg('Check-Out time must be after Check-In time')
+        setTimeout(() => setErrorMsg(''), 3000)
+        setSavingEdit(false)
+        return
+      }
+
+      const { error } = await supabase
+       .from('overtime_logs')
+       .update({
+          check_in_time: editTimes.check_in_time,
+          check_out_time: editTimes.check_out_time,
+          duration_minutes: duration_minutes
+        })
+       .eq('id', editingId)
+       .eq('user_id', user.id)
+
+      if (error) throw error
+
+      setSuccessMsg('Time updated successfully')
+      setTimeout(() => setSuccessMsg(''), 3000)
+      cancelEdit()
+      fetchReportData()
+    } catch (err) {
+      console.error('Update error:', err)
+      setErrorMsg(`Failed to update time: ${err.message}`)
+      setTimeout(() => setErrorMsg(''), 4000)
+    } finally {
+      setSavingEdit(false)
+    }
   }
 
   const handleDownloadPDF = () => {
@@ -432,6 +504,7 @@ export default function Report({ user }) {
                   <th className="pb-3 font-bold">Check-Out</th>
                   <th className="pb-3 font-bold text-right">Duration</th>
                   <th className="pb-3 font-bold pl-6">Work Description</th>
+                  <th className="pb-3 font-bold text-center">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-850">
@@ -459,16 +532,64 @@ export default function Report({ user }) {
                       )}
                     </td>
                     <td className="font-mono">
-                      {formatTimeForDisplay(log.check_in_time)}
+                      {editingId === log.id? (
+                        <input
+                          type="time"
+                          value={editTimes.check_in_time}
+                          onChange={(e) => setEditTimes({...editTimes, check_in_time: e.target.value})}
+                          className="bg-slate-900 border border-emerald-500 rounded px-2 py-1 text-sm w-24"
+                        />
+                      ) : (
+                        formatTimeForDisplay(log.check_in_time)
+                      )}
                     </td>
                     <td className="font-mono">
-                      {formatTimeForDisplay(log.check_out_time)}
+                      {editingId === log.id? (
+                        <input
+                          type="time"
+                          value={editTimes.check_out_time}
+                          onChange={(e) => setEditTimes({...editTimes, check_out_time: e.target.value})}
+                          className="bg-slate-900 border border-emerald-500 rounded px-2 py-1 text-sm w-24"
+                        />
+                      ) : (
+                        formatTimeForDisplay(log.check_out_time)
+                      )}
                     </td>
                     <td className={`font-mono font-bold text-right ${log.duration_minutes > 0? 'text-emerald-400' : 'text-slate-600'}`}>
                       {log.isPadded? '--' : log.duration_minutes? formatMinutes(log.duration_minutes) : '0h 0m'}
                     </td>
                     <td className={`pl-6 max-w-[180px] truncate text-xs ${log.isPadded? 'text-slate-600' : 'text-slate-400'}`}>
                       {log.isPadded? '--' : log.description || '-'}
+                    </td>
+                    <td className="text-center">
+                      {!log.isPadded && (
+                        <div className="flex items-center justify-center gap-2">
+                          {editingId === log.id? (
+                            <>
+                              <button
+                                onClick={saveEdit}
+                                disabled={savingEdit}
+                                className="text-emerald-400 hover:text-emerald-300 text-sm font-bold disabled:opacity-50"
+                              >
+                                {savingEdit? 'Saving...' : 'Save'}
+                              </button>
+                              <button
+                                onClick={cancelEdit}
+                                className="text-slate-500 hover:text-slate-400"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            </>
+                          ) : (
+                            <button
+                              onClick={() => startEdit(log)}
+                              className="text-cyan-400 hover:text-cyan-300"
+                            >
+                              <Edit2 className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </td>
                   </tr>
                 ))}
