@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { supabase } from './supabaseClient'
 import { jsPDF } from 'jspdf'
-import autoTable from 'jspdf-autotable' // <-- Ye line important hai
+import autoTable from 'jspdf-autotable'
 import { FileText, Download, Calendar, Clock, AlertCircle, RefreshCw } from 'lucide-react'
 
 export default function Report({ user }) {
@@ -37,12 +37,12 @@ export default function Report({ user }) {
       const end = `${yearStr}-${monthStr}-${String(lastDay).padStart(2, '0')}`
 
       const { data, error } = await supabase
-     .from('overtime_logs')
-     .select('*')
-     .eq('user_id', user.id)
-     .gte('date', start)
-     .lte('date', end)
-     .order('date', { ascending: true })
+    .from('overtime_logs')
+    .select('*')
+    .eq('user_id', user.id)
+    .gte('date', start)
+    .lte('date', end)
+    .order('date', { ascending: true })
 
       if (error) throw error
 
@@ -63,7 +63,7 @@ export default function Report({ user }) {
         if (logsByDate[dateStr]) {
           logsByDate[dateStr].forEach((log) => {
             fullMonthLogs.push({
-           ...log,
+          ...log,
               isPadded: false,
             })
             totalMins += log.duration_minutes || 0
@@ -153,15 +153,19 @@ export default function Report({ user }) {
           day: 'numeric',
           year: 'numeric',
         })
+
+        if (log.isPadded) {
+          return [dateFormatted, '--', '--', '--', '--', '--']
+        }
+
         const checkIn = formatTimeForDisplay(log.check_in_time)
         const checkOut = formatTimeForDisplay(log.check_out_time)
         const duration = log.duration_minutes? formatMinutes(log.duration_minutes) : '0h 0m'
-        const desc = log.description || (log.isPadded? 'Off day' : '-')
+        const desc = log.description || '-'
 
-        return [dateFormatted, log.isPadded? 'OFF DAY' : 'OVERTIME', checkIn, checkOut, duration, desc]
+        return [dateFormatted, 'OVERTIME', checkIn, checkOut, duration, desc]
       })
 
-      // YAHAN FIX HAI: autoTable(doc, {...}) use karo
       autoTable(doc, {
         startY: 65,
         head: [['Date', 'Status', 'Check-In', 'Check-Out', 'Duration', 'Task / Description']],
@@ -313,9 +317,7 @@ export default function Report({ user }) {
                     </td>
                     <td>
                       {log.isPadded? (
-                        <span className="bg-slate-900 text-slate-600 text- font-bold px-2 py-0.5 rounded-full border border-slate-850">
-                          OFF
-                        </span>
+                        <span className="text-slate-600">--</span>
                       ) : (
                         <span className="bg-emerald-500/10 text-emerald-400 text- font-bold px-2 py-0.5 rounded-full border border-emerald-500/20">
                           OVERTIME
@@ -328,11 +330,11 @@ export default function Report({ user }) {
                     <td className="font-mono">
                       {formatTimeForDisplay(log.check_out_time)}
                     </td>
-                    <td className={`font-mono font-bold text-right ${log.duration_minutes > 0? 'text-emerald-400' : 'text-slate-700'}`}>
-                      {log.duration_minutes? formatMinutes(log.duration_minutes) : '0h 0m'}
+                    <td className={`font-mono font-bold text-right ${log.duration_minutes > 0? 'text-emerald-400' : 'text-slate-600'}`}>
+                      {log.isPadded? '--' : log.duration_minutes? formatMinutes(log.duration_minutes) : '0h 0m'}
                     </td>
-                    <td className={`pl-6 max-w-[180px] truncate text-xs ${log.isPadded? 'italic text-slate-700' : 'text-slate-400'}`}>
-                      {log.description || '-'}
+                    <td className={`pl-6 max-w-[180px] truncate text-xs ${log.isPadded? 'text-slate-600' : 'text-slate-400'}`}>
+                      {log.isPadded? '--' : log.description || '-'}
                     </td>
                   </tr>
                 ))}
