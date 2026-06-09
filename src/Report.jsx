@@ -29,7 +29,7 @@ export default function Report({ user }) {
     const mm = String(today.getMonth() + 1).padStart(2, '0')
     setSelectedMonth(`${yyyy}-${mm}`)
     fetchUserProfile()
-  }, )
+  }, [user]) // ✅ Fix: user dependency add ki
 
   useEffect(() => {
     if (selectedMonth && user) {
@@ -38,27 +38,34 @@ export default function Report({ user }) {
   }, [selectedMonth, user])
 
   const fetchUserProfile = async () => {
-    if (!user?.id) return
+    if (!user?.id) {
+      setProfileLoading(false)
+      return
+    }
     setProfileLoading(true)
     try {
       const { data, error } = await supabase
-.from('user_profiles')
-.select('full_name, employee_id')
-.eq('user_id', user.id)
-.maybeSingle()
+       .from('user_profiles')
+       .select('full_name, employee_id')
+       .eq('user_id', user.id)
+       .maybeSingle()
 
       if (error) throw error
 
       if (data) {
         setFullName(data.full_name || '')
         setEmployeeId(data.employee_id || '')
+      } else {
+        // ✅ Naya user - empty rakho
+        setFullName('')
+        setEmployeeId('')
       }
     } catch (err) {
       console.error('Profile fetch error:', err)
       setErrorMsg(`Failed to load profile: ${err.message}`)
       setTimeout(() => setErrorMsg(''), 4000)
     } finally {
-      setProfileLoading(false)
+      setProfileLoading(false) // ✅ Har haal me false hoga
     }
   }
 
@@ -75,13 +82,13 @@ export default function Report({ user }) {
 
     try {
       const { error } = await supabase
-.from('user_profiles')
-.upsert({
-      user_id: user.id,
-      full_name: fullName.trim(),
-      employee_id: employeeId.trim(),
-      updated_at: new Date().toISOString()
-    })
+       .from('user_profiles')
+       .upsert({
+          user_id: user.id,
+          full_name: fullName.trim(),
+          employee_id: employeeId.trim(),
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'user_id' }) // ✅ Fix: upsert conflict specify kiya
 
       if (error) throw error
 
@@ -109,12 +116,12 @@ export default function Report({ user }) {
       const end = `${yearStr}-${monthStr}-${String(lastDay).padStart(2, '0')}`
 
       const { data, error } = await supabase
-.from('overtime_logs')
-.select('*')
-.eq('user_id', user.id)
-.gte('date', start)
-.lte('date', end)
-.order('date', { ascending: true })
+       .from('overtime_logs')
+       .select('*')
+       .eq('user_id', user.id)
+       .gte('date', start)
+       .lte('date', end)
+       .order('date', { ascending: true })
 
       if (error) throw error
 
@@ -135,7 +142,7 @@ export default function Report({ user }) {
         if (logsByDate[dateStr]) {
           logsByDate[dateStr].forEach((log) => {
             fullMonthLogs.push({
-     ...log,
+             ...log,
               isPadded: false,
             })
             totalMins += log.duration_minutes || 0
@@ -216,8 +223,12 @@ export default function Report({ user }) {
       const log = reportLogs.find(l => l.id === editingId)
       const isPadded = log.isPadded
 
-      const start = new Date(`${log.date}T${editTimes.check_in_time}`)
-      const end = new Date(`${log.date}T${editTimes.check_out_time}`)
+      // ✅ Fix: Poora timestamp banao
+      const checkInTimestamp = `${log.date}T${editTimes.check_in_time}:00`
+      const checkOutTimestamp = `${log.date}T${editTimes.check_out_time}:00`
+
+      const start = new Date(checkInTimestamp)
+      const end = new Date(checkOutTimestamp)
 
       if (editTimes.check_out_time < editTimes.check_in_time) end.setDate(end.getDate() + 1)
 
@@ -232,14 +243,13 @@ export default function Report({ user }) {
       }
 
       if (isPadded) {
-        // INSERT new record for padded date
         const { error } = await supabase
-        .from('overtime_logs')
-        .insert({
+         .from('overtime_logs')
+         .insert({
             user_id: user.id,
             date: log.date,
-            check_in_time: editTimes.check_in_time,
-            check_out_time: editTimes.check_out_time,
+            check_in_time: checkInTimestamp, // ✅ Full timestamp
+            check_out_time: checkOutTimestamp, // ✅ Full timestamp
             duration_minutes: duration_minutes,
             description: editTimes.description || 'Manual entry'
           })
@@ -247,17 +257,16 @@ export default function Report({ user }) {
         if (error) throw error
         setSuccessMsg('Time added successfully')
       } else {
-        // UPDATE existing record
         const { error } = await supabase
-        .from('overtime_logs')
-        .update({
-            check_in_time: editTimes.check_in_time,
-            check_out_time: editTimes.check_out_time,
+         .from('overtime_logs')
+         .update({
+            check_in_time: checkInTimestamp, // ✅ Full timestamp
+            check_out_time: checkOutTimestamp, // ✅ Full timestamp
             duration_minutes: duration_minutes,
             description: editTimes.description || log.description
           })
-        .eq('id', editingId)
-        .eq('user_id', user.id)
+         .eq('id', editingId)
+         .eq('user_id', user.id)
 
         if (error) throw error
         setSuccessMsg('Time updated successfully')
@@ -324,7 +333,7 @@ export default function Report({ user }) {
         })
 
         if (log.isPadded) {
-          return [dateFormatted, '--', '--', '--', '--', '--']
+          return [dateFormatted, '--', '--', '--']
         }
 
         const checkIn = formatTimeForDisplay(log.check_in_time)
@@ -375,7 +384,7 @@ export default function Report({ user }) {
     <div className="space-y-8 animate-fade-in">
       {/* Profile Section */}
       <div className="glass rounded-3xl p-6 md:p-8 relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/5 rounded-full blur- pointer-events-none"></div>
+        <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/5 rounded-full blur-2xl pointer-events-none"></div>
         <div className="flex items-center gap-3 mb-6">
           <User className="w-6 h-6 text-emerald-400" />
           <h2 className="text-xl font-bold text-slate-100">Employee Details</h2>
@@ -432,7 +441,7 @@ export default function Report({ user }) {
       </div>
 
       <div className="glass rounded-3xl p-6 md:p-8 relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-cyan-500/5 rounded-full blur- pointer-events-none"></div>
+        <div className="absolute top-0 right-0 w-64 h-64 bg-cyan-500/5 rounded-full blur-2xl pointer-events-none"></div>
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div>
             <h1 className="text-3xl font-extrabold tracking-tight text-slate-100 flex items-center gap-3">
@@ -547,7 +556,7 @@ export default function Report({ user }) {
                       {log.isPadded? (
                         <span className="text-slate-600">--</span>
                       ) : (
-                        <span className="bg-emerald-500/10 text-emerald-400 text- font-bold px-2 py-0.5 rounded-full border border-emerald-500/20">
+                        <span className="bg-emerald-500/10 text-emerald-400 text-xs font-bold px-2 py-0.5 rounded-full border border-emerald-500/20">
                           OVERTIME
                         </span>
                       )}
