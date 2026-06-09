@@ -5,25 +5,17 @@ import Login from './Login'
 import Dashboard from './Dashboard'
 import History from './History'
 import Report from './Report'
-import AdminDashboard from './AdminDashboard' // ✅ Naya import
-import { LayoutDashboard, History as HistoryIcon, FileText, LogOut, Clock, User, Shield } from 'lucide-react'
+import { LayoutDashboard, History as HistoryIcon, FileText, LogOut, Clock, User } from 'lucide-react'
 
-// Layout component with premium responsive navigation
-function AppLayout({ children, user, isAdmin }) {
+// Layout component with premium responsive navigation (Sidebar/Header on desktop, Bottom Nav on mobile)
+function AppLayout({ children, user }) {
   const location = useLocation()
-
+  
   const handleLogout = async () => {
-    // Log activity before logout
-    await supabase.from('activity_logs').insert({
-      user_id: user.id,
-      action: 'logout'
-    })
     await supabase.auth.signOut()
   }
 
-  const navItems = isAdmin? [
-    { name: 'Admin Panel', path: '/admin', icon: Shield },
-  ] : [
+  const navItems = [
     { name: 'Dashboard', path: '/', icon: LayoutDashboard },
     { name: 'History', path: '/history', icon: HistoryIcon },
     { name: 'Reports', path: '/report', icon: FileText }
@@ -42,11 +34,6 @@ function AppLayout({ children, user, isAdmin }) {
           <span className="text-xl font-bold bg-gradient-to-r from-emerald-400 to-cyan-400 bg-clip-text text-transparent">
             Overtime Tracker
           </span>
-          {isAdmin && (
-            <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-400 text-xs font-bold rounded-full border border-emerald-500/30">
-              ADMIN
-            </span>
-          )}
         </div>
 
         {/* Desktop Navigation */}
@@ -57,7 +44,7 @@ function AppLayout({ children, user, isAdmin }) {
               to={item.path}
               className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200 ${
                 isActive(item.path)
-                 ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                  ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
                   : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/50'
               }`}
             >
@@ -88,7 +75,7 @@ function AppLayout({ children, user, isAdmin }) {
         {children}
       </main>
 
-      {/* Mobile Bottom Navigation Bar */}
+      {/* Mobile Bottom Navigation Bar (Sticky Tabs) */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-slate-950/90 backdrop-blur-lg border-t border-slate-900/80 px-4 py-2 flex justify-around items-center">
         {navItems.map((item) => {
           const ActiveIcon = item.icon
@@ -98,10 +85,10 @@ function AppLayout({ children, user, isAdmin }) {
               key={item.name}
               to={item.path}
               className={`flex flex-col items-center gap-1.5 py-1 px-3 rounded-xl transition duration-200 ${
-                active? 'text-emerald-400 scale-105' : 'text-slate-500 hover:text-slate-300'
+                active ? 'text-emerald-400 scale-105' : 'text-slate-500 hover:text-slate-300'
               }`}
             >
-              <ActiveIcon className={`w-5.5 h-5.5 ${active? 'text-emerald-400' : 'text-slate-500'}`} />
+              <ActiveIcon className={`w-5.5 h-5.5 ${active ? 'text-emerald-400' : 'text-slate-500'}`} />
               <span className="text-[10px] font-bold tracking-wider">{item.name}</span>
             </Link>
           )
@@ -114,62 +101,22 @@ function AppLayout({ children, user, isAdmin }) {
 export default function App() {
   const [session, setSession] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [isAdmin, setIsAdmin] = useState(false)
 
   useEffect(() => {
     // 1. Fetch initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session)
-      if (session) {
-        checkAdminStatus(session.user.id)
-        logActivity(session.user.id, 'login')
-      }
       setLoading(false)
     })
 
     // 2. Listen for auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session)
-      if (session) {
-        checkAdminStatus(session.user.id)
-        if (_event === 'SIGNED_IN') {
-          logActivity(session.user.id, 'login')
-        }
-      } else {
-        setIsAdmin(false)
-      }
       setLoading(false)
     })
 
     return () => subscription.unsubscribe()
   }, [])
-
-  const checkAdminStatus = async (userId) => {
-    try {
-      const { data } = await supabase
-       .from('user_profiles')
-       .select('role')
-       .eq('user_id', userId)
-       .single()
-
-      setIsAdmin(data?.role === 'admin')
-    } catch (err) {
-      console.error('Admin check failed:', err)
-      setIsAdmin(false)
-    }
-  }
-
-  const logActivity = async (userId, action) => {
-    try {
-      await supabase.from('activity_logs').insert({
-        user_id: userId,
-        action: action,
-        details: { timestamp: new Date().toISOString() }
-      })
-    } catch (err) {
-      console.error('Activity log failed:', err)
-    }
-  }
 
   if (loading) {
     return (
@@ -189,69 +136,53 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         {/* Public Route */}
-        <Route
-          path="/login"
-          element={!session? <Login /> : <Navigate to={isAdmin? "/admin" : "/"} replace />}
+        <Route 
+          path="/login" 
+          element={!session ? <Login /> : <Navigate to="/" replace />} 
         />
-
-        {/* Admin Route */}
-        <Route
-          path="/admin"
+        
+        {/* Private Routes */}
+        <Route 
+          path="/" 
           element={
-            session && isAdmin? (
-              <AppLayout user={session.user} isAdmin={isAdmin}>
-                <AdminDashboard user={session.user} />
+            session ? (
+              <AppLayout user={session.user}>
+                <Dashboard user={session.user} />
               </AppLayout>
-            ) : (
-              <Navigate to="/" replace />
-            )
-          }
-        />
-
-        {/* Private Routes - Normal Users */}
-        <Route
-          path="/"
-          element={
-            session? (
-              isAdmin? <Navigate to="/admin" replace /> : (
-                <AppLayout user={session.user} isAdmin={isAdmin}>
-                  <Dashboard user={session.user} />
-                </AppLayout>
-              )
             ) : (
               <Navigate to="/login" replace />
             )
-          }
+          } 
         />
-
-        <Route
-          path="/history"
+        
+        <Route 
+          path="/history" 
           element={
-            session &&!isAdmin? (
-              <AppLayout user={session.user} isAdmin={isAdmin}>
+            session ? (
+              <AppLayout user={session.user}>
                 <History user={session.user} />
               </AppLayout>
             ) : (
-              <Navigate to={isAdmin? "/admin" : "/login"} replace />
+              <Navigate to="/login" replace />
             )
-          }
+          } 
         />
-
-        <Route
-          path="/report"
+        
+        <Route 
+          path="/report" 
           element={
-            session &&!isAdmin? (
-              <AppLayout user={session.user} isAdmin={isAdmin}>
+            session ? (
+              <AppLayout user={session.user}>
                 <Report user={session.user} />
               </AppLayout>
             ) : (
-              <Navigate to={isAdmin? "/admin" : "/login"} replace />
+              <Navigate to="/login" replace />
             )
-          }
+          } 
         />
 
         {/* Fallback redirect */}
-        <Route path="*" element={<Navigate to={session? (isAdmin? "/admin" : "/") : "/login"} replace />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
   )
