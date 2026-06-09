@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { supabase } from './supabaseClient'
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
-import { FileText, Download, Calendar, Clock, AlertCircle, RefreshCw, User, Save, CheckCircle, Edit2, X, Plus } from 'lucide-react'
+import { FileText, Download, Calendar, Clock, AlertCircle, RefreshCw, User, Save, CheckCircle, Edit2, X, Plus, Trash2 } from 'lucide-react'
 
 export default function Report({ user }) {
   const [selectedMonth, setSelectedMonth] = useState('')
@@ -22,6 +22,7 @@ export default function Report({ user }) {
   const [editingId, setEditingId] = useState(null)
   const [editTimes, setEditTimes] = useState({ check_in_time: '', check_out_time: '', description: '' })
   const [savingEdit, setSavingEdit] = useState(false)
+  const [deletingId, setDeletingId] = useState(null)
 
   useEffect(() => {
     const today = new Date()
@@ -29,7 +30,7 @@ export default function Report({ user }) {
     const mm = String(today.getMonth() + 1).padStart(2, '0')
     setSelectedMonth(`${yyyy}-${mm}`)
     fetchUserProfile()
-  }, [user]) // ✅ Fix: user dependency add ki
+  }, )
 
   useEffect(() => {
     if (selectedMonth && user) {
@@ -45,10 +46,10 @@ export default function Report({ user }) {
     setProfileLoading(true)
     try {
       const { data, error } = await supabase
-       .from('user_profiles')
-       .select('full_name, employee_id')
-       .eq('user_id', user.id)
-       .maybeSingle()
+      .from('user_profiles')
+      .select('full_name, employee_id')
+      .eq('user_id', user.id)
+      .maybeSingle()
 
       if (error) throw error
 
@@ -56,7 +57,6 @@ export default function Report({ user }) {
         setFullName(data.full_name || '')
         setEmployeeId(data.employee_id || '')
       } else {
-        // ✅ Naya user - empty rakho
         setFullName('')
         setEmployeeId('')
       }
@@ -65,7 +65,7 @@ export default function Report({ user }) {
       setErrorMsg(`Failed to load profile: ${err.message}`)
       setTimeout(() => setErrorMsg(''), 4000)
     } finally {
-      setProfileLoading(false) // ✅ Har haal me false hoga
+      setProfileLoading(false)
     }
   }
 
@@ -82,13 +82,13 @@ export default function Report({ user }) {
 
     try {
       const { error } = await supabase
-       .from('user_profiles')
-       .upsert({
+      .from('user_profiles')
+      .upsert({
           user_id: user.id,
           full_name: fullName.trim(),
           employee_id: employeeId.trim(),
           updated_at: new Date().toISOString()
-        }, { onConflict: 'user_id' }) // ✅ Fix: upsert conflict specify kiya
+        }, { onConflict: 'user_id' })
 
       if (error) throw error
 
@@ -116,12 +116,12 @@ export default function Report({ user }) {
       const end = `${yearStr}-${monthStr}-${String(lastDay).padStart(2, '0')}`
 
       const { data, error } = await supabase
-       .from('overtime_logs')
-       .select('*')
-       .eq('user_id', user.id)
-       .gte('date', start)
-       .lte('date', end)
-       .order('date', { ascending: true })
+      .from('overtime_logs')
+      .select('*')
+      .eq('user_id', user.id)
+      .gte('date', start)
+      .lte('date', end)
+      .order('date', { ascending: true })
 
       if (error) throw error
 
@@ -142,7 +142,7 @@ export default function Report({ user }) {
         if (logsByDate[dateStr]) {
           logsByDate[dateStr].forEach((log) => {
             fullMonthLogs.push({
-             ...log,
+            ...log,
               isPadded: false,
             })
             totalMins += log.duration_minutes || 0
@@ -196,9 +196,16 @@ export default function Report({ user }) {
 
   const startEdit = (log) => {
     setEditingId(log.id)
+    // ✅ Fix: Agar timestamp hai to sirf time nikal
+    const getTimeFromTimestamp = (ts) => {
+      if (!ts) return '18:00'
+      if (ts.includes('T')) return ts.split('T')[1].substring(0, 5)
+      return ts
+    }
+
     setEditTimes({
-      check_in_time: log.check_in_time || '18:00',
-      check_out_time: log.check_out_time || '20:00',
+      check_in_time: getTimeFromTimestamp(log.check_in_time),
+      check_out_time: getTimeFromTimestamp(log.check_out_time),
       description: log.description === 'No overtime logged'? '' : log.description || ''
     })
     setErrorMsg('')
@@ -223,7 +230,7 @@ export default function Report({ user }) {
       const log = reportLogs.find(l => l.id === editingId)
       const isPadded = log.isPadded
 
-      // ✅ Fix: Poora timestamp banao
+      // ✅ Fix: Timestamp sahi format me banao
       const checkInTimestamp = `${log.date}T${editTimes.check_in_time}:00`
       const checkOutTimestamp = `${log.date}T${editTimes.check_out_time}:00`
 
@@ -244,12 +251,12 @@ export default function Report({ user }) {
 
       if (isPadded) {
         const { error } = await supabase
-         .from('overtime_logs')
-         .insert({
+        .from('overtime_logs')
+        .insert({
             user_id: user.id,
             date: log.date,
-            check_in_time: checkInTimestamp, // ✅ Full timestamp
-            check_out_time: checkOutTimestamp, // ✅ Full timestamp
+            check_in_time: checkInTimestamp,
+            check_out_time: checkOutTimestamp,
             duration_minutes: duration_minutes,
             description: editTimes.description || 'Manual entry'
           })
@@ -258,15 +265,15 @@ export default function Report({ user }) {
         setSuccessMsg('Time added successfully')
       } else {
         const { error } = await supabase
-         .from('overtime_logs')
-         .update({
-            check_in_time: checkInTimestamp, // ✅ Full timestamp
-            check_out_time: checkOutTimestamp, // ✅ Full timestamp
+        .from('overtime_logs')
+        .update({
+            check_in_time: checkInTimestamp,
+            check_out_time: checkOutTimestamp,
             duration_minutes: duration_minutes,
             description: editTimes.description || log.description
           })
-         .eq('id', editingId)
-         .eq('user_id', user.id)
+        .eq('id', editingId)
+        .eq('user_id', user.id)
 
         if (error) throw error
         setSuccessMsg('Time updated successfully')
@@ -281,6 +288,34 @@ export default function Report({ user }) {
       setTimeout(() => setErrorMsg(''), 4000)
     } finally {
       setSavingEdit(false)
+    }
+  }
+
+  // ✅ NAYA: Delete function
+  const handleDelete = async (logId) => {
+    if (!confirm('Are you sure you want to delete this overtime entry?')) return
+
+    setDeletingId(logId)
+    setErrorMsg('')
+
+    try {
+      const { error } = await supabase
+      .from('overtime_logs')
+      .delete()
+      .eq('id', logId)
+      .eq('user_id', user.id)
+
+      if (error) throw error
+
+      setSuccessMsg('Overtime deleted successfully')
+      setTimeout(() => setSuccessMsg(''), 3000)
+      fetchReportData()
+    } catch (err) {
+      console.error('Delete error:', err)
+      setErrorMsg(`Failed to delete: ${err.message}`)
+      setTimeout(() => setErrorMsg(''), 4000)
+    } finally {
+      setDeletingId(null)
     }
   }
 
@@ -333,7 +368,7 @@ export default function Report({ user }) {
         })
 
         if (log.isPadded) {
-          return [dateFormatted, '--', '--', '--']
+          return [dateFormatted, '--', '--', '--', '--', '--']
         }
 
         const checkIn = formatTimeForDisplay(log.check_in_time)
@@ -620,13 +655,29 @@ export default function Report({ user }) {
                             </button>
                           </>
                         ) : (
-                          <button
-                            onClick={() => startEdit(log)}
-                            className="text-cyan-400 hover:text-cyan-300 flex items-center gap-1"
-                          >
-                            {log.isPadded? <Plus className="w-4 h-4" /> : <Edit2 className="w-4 h-4" />}
-                            <span className="text-xs">{log.isPadded? 'Add' : 'Edit'}</span>
-                          </button>
+                          <>
+                            <button
+                              onClick={() => startEdit(log)}
+                              className="text-cyan-400 hover:text-cyan-300 flex items-center gap-1"
+                            >
+                              {log.isPadded? <Plus className="w-4 h-4" /> : <Edit2 className="w-4 h-4" />}
+                              <span className="text-xs">{log.isPadded? 'Add' : 'Edit'}</span>
+                            </button>
+                            {/* ✅ NAYA: Delete button - sirf real records ke liye */}
+                            {!log.isPadded && (
+                              <button
+                                onClick={() => handleDelete(log.id)}
+                                disabled={deletingId === log.id}
+                                className="text-rose-400 hover:text-rose-300 disabled:opacity-50"
+                              >
+                                {deletingId === log.id? (
+                                  <RefreshCw className="w-4 h-4 animate-spin" />
+                                ) : (
+                                  <Trash2 className="w-4 h-4" />
+                                )}
+                              </button>
+                            )}
+                          </>
                         )}
                       </div>
                     </td>
