@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { supabase } from './supabaseClient'
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
-import { FileText, Download, Calendar, Clock, AlertCircle, RefreshCw } from 'lucide-react'
+import { FileText, Download, Calendar, Clock, AlertCircle, RefreshCw, User, Save } from 'lucide-react'
 
 export default function Report({ user }) {
   const [selectedMonth, setSelectedMonth] = useState('')
@@ -10,12 +10,19 @@ export default function Report({ user }) {
   const [totalMinutes, setTotalMinutes] = useState(0)
   const [loading, setLoading] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
+  const [successMsg, setSuccessMsg] = useState('')
+
+  // Profile states
+  const [fullName, setFullName] = useState('')
+  const [employeeId, setEmployeeId] = useState('')
+  const [savingProfile, setSavingProfile] = useState(false)
 
   useEffect(() => {
     const today = new Date()
     const yyyy = today.getFullYear()
     const mm = String(today.getMonth() + 1).padStart(2, '0')
     setSelectedMonth(`${yyyy}-${mm}`)
+    fetchUserProfile()
   }, [])
 
   useEffect(() => {
@@ -23,6 +30,56 @@ export default function Report({ user }) {
       fetchReportData()
     }
   }, [selectedMonth, user])
+
+  const fetchUserProfile = async () => {
+    try {
+      const { data, error } = await supabase
+   .from('user_profiles')
+   .select('full_name, employee_id')
+   .eq('user_id', user.id)
+   .single()
+
+      if (data) {
+        setFullName(data.full_name || '')
+        setEmployeeId(data.employee_id || '')
+      }
+    } catch (err) {
+      console.log('No profile found yet')
+    }
+  }
+
+  const handleSaveProfile = async () => {
+    if (!fullName.trim() ||!employeeId.trim()) {
+      setErrorMsg('Full Name aur Employee ID dono required hain')
+      setTimeout(() => setErrorMsg(''), 3000)
+      return
+    }
+
+    setSavingProfile(true)
+    setErrorMsg('')
+    setSuccessMsg('')
+
+    try {
+      const { error } = await supabase
+   .from('user_profiles')
+   .upsert({
+      user_id: user.id,
+      full_name: fullName.trim(),
+      employee_id: employeeId.trim(),
+      updated_at: new Date().toISOString()
+    })
+
+      if (error) throw error
+
+      setSuccessMsg('Profile save ho gaya')
+      setTimeout(() => setSuccessMsg(''), 3000)
+    } catch (err) {
+      console.error(err)
+      setErrorMsg('Profile save nahi hua. Dubara try karo')
+    } finally {
+      setSavingProfile(false)
+    }
+  }
 
   const fetchReportData = async () => {
     setLoading(true)
@@ -37,12 +94,12 @@ export default function Report({ user }) {
       const end = `${yearStr}-${monthStr}-${String(lastDay).padStart(2, '0')}`
 
       const { data, error } = await supabase
-    .from('overtime_logs')
-    .select('*')
-    .eq('user_id', user.id)
-    .gte('date', start)
-    .lte('date', end)
-    .order('date', { ascending: true })
+   .from('overtime_logs')
+   .select('*')
+   .eq('user_id', user.id)
+   .gte('date', start)
+   .lte('date', end)
+   .order('date', { ascending: true })
 
       if (error) throw error
 
@@ -63,7 +120,7 @@ export default function Report({ user }) {
         if (logsByDate[dateStr]) {
           logsByDate[dateStr].forEach((log) => {
             fullMonthLogs.push({
-          ...log,
+         ...log,
               isPadded: false,
             })
             totalMins += log.duration_minutes || 0
@@ -116,6 +173,12 @@ export default function Report({ user }) {
   }
 
   const handleDownloadPDF = () => {
+    if (!fullName.trim() ||!employeeId.trim()) {
+      setErrorMsg('Pehle Full Name aur Employee ID save karo upar')
+      setTimeout(() => setErrorMsg(''), 4000)
+      return
+    }
+
     try {
       setErrorMsg('')
       const doc = new jsPDF()
@@ -142,10 +205,14 @@ export default function Report({ user }) {
       doc.setFillColor(16, 185, 129)
       doc.rect(0, 43, 210, 2, 'F')
 
+      // YAHAN EMAIL HATA DIYA - AB NAME + ID AAYEGA
       doc.setTextColor(51, 65, 85)
       doc.setFontSize(9)
-      doc.text(`Report For: ${user.email}`, 15, 53)
-      doc.text(`Generated On: ${new Date().toLocaleString()}`, 15, 58)
+      doc.setFont('helvetica', 'bold')
+      doc.text(`Employee Name: ${fullName}`, 15, 53)
+      doc.text(`Employee ID: ${employeeId}`, 15, 58)
+      doc.setFont('helvetica', 'normal')
+      doc.text(`Generated On: ${new Date().toLocaleString()}`, 15, 63)
 
       const tableRows = reportLogs.map((log) => {
         const dateFormatted = new Date(log.date).toLocaleDateString('en-US', {
@@ -167,7 +234,7 @@ export default function Report({ user }) {
       })
 
       autoTable(doc, {
-        startY: 65,
+        startY: 70,
         head: [['Date', 'Status', 'Check-In', 'Check-Out', 'Duration', 'Task / Description']],
         body: tableRows,
         headStyles: {
@@ -192,7 +259,7 @@ export default function Report({ user }) {
         theme: 'striped',
       })
 
-      doc.save(`Overtime_Report_${selectedMonth}.pdf`)
+      doc.save(`Overtime_Report_${selectedMonth}_${employeeId}.pdf`)
     } catch (err) {
       console.error('PDF Error:', err)
       setErrorMsg(`PDF Error: ${err.message}`)
@@ -204,6 +271,60 @@ export default function Report({ user }) {
 
   return (
     <div className="space-y-8 animate-fade-in">
+      {/* Profile Section */}
+      <div className="glass rounded-3xl p-6 md:p-8 relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/5 rounded-full blur- pointer-events-none"></div>
+        <div className="flex items-center gap-3 mb-6">
+          <User className="w-6 h-6 text-emerald-400" />
+          <h2 className="text-xl font-bold text-slate-100">Employee Details</h2>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="space-y-1.5">
+            <label className="text-slate-400 text-xs font-bold uppercase tracking-wider">Full Name</label>
+            <input
+              type="text"
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              placeholder="Ali Khan"
+              className="w-full bg-slate-900 border border-slate-800 rounded-xl py-3 px-4 text-slate-100 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition duration-200"
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-slate-400 text-xs font-bold uppercase tracking-wider">Employee ID</label>
+            <input
+              type="text"
+              value={employeeId}
+              onChange={(e) => setEmployeeId(e.target.value)}
+              placeholder="EMP-001"
+              className="w-full bg-slate-900 border border-slate-800 rounded-xl py-3 px-4 text-slate-100 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition duration-200"
+            />
+          </div>
+
+          <div className="flex items-end">
+            <button
+              onClick={handleSaveProfile}
+              disabled={savingProfile}
+              className="w-full flex items-center justify-center gap-2 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 font-bold py-3 px-6 rounded-xl transition duration-300 border border-emerald-500/30 disabled:opacity-50"
+            >
+              {savingProfile? (
+                <RefreshCw className="w-5 h-5 animate-spin" />
+              ) : (
+                <Save className="w-5 h-5" />
+              )}
+              Save Details
+            </button>
+          </div>
+        </div>
+
+        {successMsg && (
+          <div className="mt-4 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-sm">
+            {successMsg}
+          </div>
+        )}
+      </div>
+
       <div className="glass rounded-3xl p-6 md:p-8 relative overflow-hidden">
         <div className="absolute top-0 right-0 w-64 h-64 bg-cyan-500/5 rounded-full blur- pointer-events-none"></div>
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
