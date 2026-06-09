@@ -41,12 +41,12 @@ export default function Report({ user }) {
 
       // Fetch logs from database
       const { data, error } = await supabase
-        .from('overtime_logs')
-        .select('*')
-        .eq('user_id', user.id)
-        .gte('date', start)
-        .lte('date', end)
-        .order('date', { ascending: true })
+      .from('overtime_logs')
+      .select('*')
+      .eq('user_id', user.id)
+      .gte('date', start)
+      .lte('date', end)
+      .order('date', { ascending: true })
 
       if (error) throw error
 
@@ -69,7 +69,7 @@ export default function Report({ user }) {
         if (logsByDate[dateStr]) {
           logsByDate[dateStr].forEach((log) => {
             fullMonthLogs.push({
-              ...log,
+            ...log,
               isPadded: false,
             })
             totalMins += log.duration_minutes || 0
@@ -131,7 +131,7 @@ export default function Report({ user }) {
       const monthLabel = new Date(y, m - 1).toLocaleString('default', { month: 'long', year: 'numeric' })
       doc.text(`Month: ${monthLabel}`, 140, 20)
       doc.text(`Total Duration: ${formatMinutes(totalMinutes)}`, 140, 27)
-      
+
       // Bottom line in header
       doc.setFillColor(16, 185, 129) // Emerald 500
       doc.rect(0, 43, 210, 2, 'F')
@@ -142,23 +142,19 @@ export default function Report({ user }) {
       doc.text(`Report For: ${user.email}`, 15, 53)
       doc.text(`Generated On: ${new Date().toLocaleString()}`, 15, 58)
 
-      // Table formatting
+      // Table formatting - FIXED: Direct time use kiya, new Date() nahi
       const tableRows = reportLogs.map((log) => {
         const dateFormatted = new Date(log.date).toLocaleDateString('en-US', {
           month: 'short',
           day: 'numeric',
           year: 'numeric',
         })
-        const checkIn = log.check_in_time
-          ? new Date(log.check_in_time).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
-          : '--'
-        const checkOut = log.check_out_time
-          ? new Date(log.check_out_time).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
-          : '--'
-        const duration = log.duration_minutes ? formatMinutes(log.duration_minutes) : '0h 0m'
-        const desc = log.description || (log.isPadded ? 'Off day' : '-')
+        const checkIn = log.check_in_time || '--'
+        const checkOut = log.check_out_time || '--'
+        const duration = log.duration_minutes? formatMinutes(log.duration_minutes) : '0h 0m'
+        const desc = log.description || (log.isPadded? 'Off day' : '-')
 
-        return [dateFormatted, log.isPadded ? 'OFF DAY' : 'OVERTIME', checkIn, checkOut, duration, desc]
+        return [dateFormatted, log.isPadded? 'OFF DAY' : 'OVERTIME', checkIn, checkOut, duration, desc]
       })
 
       // Generate AutoTable
@@ -196,8 +192,8 @@ export default function Report({ user }) {
     }
   }
 
-  const [y, m] = selectedMonth ? selectedMonth.split('-') : ['', '']
-  const monthName = selectedMonth ? new Date(y, m - 1).toLocaleString('default', { month: 'long', year: 'numeric' }) : ''
+  const [y, m] = selectedMonth? selectedMonth.split('-') : ['', '']
+  const monthName = selectedMonth? new Date(y, m - 1).toLocaleString('default', { month: 'long', year: 'numeric' }) : ''
 
   return (
     <div className="space-y-8 animate-fade-in">
@@ -282,11 +278,11 @@ export default function Report({ user }) {
           {loading && <RefreshCw className="w-5 h-5 text-emerald-400 animate-spin" />}
         </div>
 
-        {loading ? (
+        {loading? (
           <div className="py-20 flex justify-center">
             <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
           </div>
-        ) : reportLogs.length === 0 ? (
+        ) : reportLogs.length === 0? (
           <div className="py-20 text-center text-slate-500 italic text-sm">
             Select a month to load previews.
           </div>
@@ -305,21 +301,21 @@ export default function Report({ user }) {
               </thead>
               <tbody className="divide-y divide-slate-850">
                 {reportLogs.map((log) => (
-                  <tr 
-                    key={log.id} 
+                  <tr
+                    key={log.id}
                     className={`hover:bg-slate-900/30 transition-colors ${
-                      log.isPadded ? 'text-slate-650 bg-slate-950/10' : 'text-slate-100'
+                      log.isPadded? 'text-slate-650 bg-slate-950/10' : 'text-slate-100'
                     }`}
                   >
                     <td className="py-3.5 font-semibold">
-                      {new Date(log.date).toLocaleDateString('en-US', { 
-                        weekday: 'short', 
-                        month: 'short', 
-                        day: 'numeric' 
+                      {new Date(log.date).toLocaleDateString('en-US', {
+                        weekday: 'short',
+                        month: 'short',
+                        day: 'numeric'
                       })}
                     </td>
                     <td>
-                      {log.isPadded ? (
+                      {log.isPadded? (
                         <span className="bg-slate-900 text-slate-600 text-[10px] font-bold px-2 py-0.5 rounded-full border border-slate-850">
                           OFF
                         </span>
@@ -330,29 +326,15 @@ export default function Report({ user }) {
                       )}
                     </td>
                     <td className="font-mono">
-                      {log.check_in_time ? (
-                        new Date(log.check_in_time).toLocaleTimeString('en-US', { 
-                          hour: '2-digit', 
-                          minute: '2-digit' 
-                        })
-                      ) : (
-                        <span className="text-slate-800">--:--</span>
-                      )}
+                      {log.check_in_time || <span className="text-slate-800">--:--</span>}
                     </td>
                     <td className="font-mono">
-                      {log.check_out_time ? (
-                        new Date(log.check_out_time).toLocaleTimeString('en-US', { 
-                          hour: '2-digit', 
-                          minute: '2-digit' 
-                        })
-                      ) : (
-                        <span className="text-slate-800">--:--</span>
-                      )}
+                      {log.check_out_time || <span className="text-slate-800">--:--</span>}
                     </td>
-                    <td className={`font-mono font-bold text-right ${log.duration_minutes > 0 ? 'text-emerald-400' : 'text-slate-700'}`}>
-                      {log.duration_minutes ? formatMinutes(log.duration_minutes) : '0h 0m'}
+                    <td className={`font-mono font-bold text-right ${log.duration_minutes > 0? 'text-emerald-400' : 'text-slate-700'}`}>
+                      {log.duration_minutes? formatMinutes(log.duration_minutes) : '0h 0m'}
                     </td>
-                    <td className={`pl-6 max-w-[180px] truncate text-xs ${log.isPadded ? 'italic text-slate-700' : 'text-slate-400'}`}>
+                    <td className={`pl-6 max-w-[180px] truncate text-xs ${log.isPadded? 'italic text-slate-700' : 'text-slate-400'}`}>
                       {log.description || '-'}
                     </td>
                   </tr>
