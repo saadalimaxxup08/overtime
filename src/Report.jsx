@@ -30,7 +30,7 @@ export default function Report({ user }) {
     const mm = String(today.getMonth() + 1).padStart(2, '0')
     setSelectedMonth(`${yyyy}-${mm}`)
     fetchUserProfile()
-  }, )
+  }, []) // ✅ FIXED: Empty array add kiya
 
   useEffect(() => {
     if (selectedMonth && user) {
@@ -44,12 +44,20 @@ export default function Report({ user }) {
       return
     }
     setProfileLoading(true)
+    setErrorMsg('')
+
     try {
-      const { data, error } = await supabase
-      .from('user_profiles')
-      .select('full_name, employee_id')
-      .eq('user_id', user.id)
-      .maybeSingle()
+      // ✅ FIXED: 5 sec timeout add kiya
+      const { data, error } = await Promise.race([
+        supabase
+         .from('user_profiles')
+         .select('full_name, employee_id')
+         .eq('user_id', user.id)
+         .maybeSingle(),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Timeout: Profile load slow')), 5000)
+        )
+      ])
 
       if (error) throw error
 
@@ -82,8 +90,8 @@ export default function Report({ user }) {
 
     try {
       const { error } = await supabase
-      .from('user_profiles')
-      .upsert({
+     .from('user_profiles')
+     .upsert({
           user_id: user.id,
           full_name: fullName.trim(),
           employee_id: employeeId.trim(),
@@ -116,12 +124,12 @@ export default function Report({ user }) {
       const end = `${yearStr}-${monthStr}-${String(lastDay).padStart(2, '0')}`
 
       const { data, error } = await supabase
-      .from('overtime_logs')
-      .select('*')
-      .eq('user_id', user.id)
-      .gte('date', start)
-      .lte('date', end)
-      .order('date', { ascending: true })
+     .from('overtime_logs')
+     .select('*')
+     .eq('user_id', user.id)
+     .gte('date', start)
+     .lte('date', end)
+     .order('date', { ascending: true })
 
       if (error) throw error
 
@@ -142,7 +150,7 @@ export default function Report({ user }) {
         if (logsByDate[dateStr]) {
           logsByDate[dateStr].forEach((log) => {
             fullMonthLogs.push({
-            ...log,
+           ...log,
               isPadded: false,
             })
             totalMins += log.duration_minutes || 0
@@ -196,7 +204,6 @@ export default function Report({ user }) {
 
   const startEdit = (log) => {
     setEditingId(log.id)
-    // ✅ Fix: Agar timestamp hai to sirf time nikal
     const getTimeFromTimestamp = (ts) => {
       if (!ts) return '18:00'
       if (ts.includes('T')) return ts.split('T')[1].substring(0, 5)
@@ -230,7 +237,6 @@ export default function Report({ user }) {
       const log = reportLogs.find(l => l.id === editingId)
       const isPadded = log.isPadded
 
-      // ✅ Fix: Timestamp sahi format me banao
       const checkInTimestamp = `${log.date}T${editTimes.check_in_time}:00`
       const checkOutTimestamp = `${log.date}T${editTimes.check_out_time}:00`
 
@@ -251,8 +257,8 @@ export default function Report({ user }) {
 
       if (isPadded) {
         const { error } = await supabase
-        .from('overtime_logs')
-        .insert({
+       .from('overtime_logs')
+       .insert({
             user_id: user.id,
             date: log.date,
             check_in_time: checkInTimestamp,
@@ -265,15 +271,15 @@ export default function Report({ user }) {
         setSuccessMsg('Time added successfully')
       } else {
         const { error } = await supabase
-        .from('overtime_logs')
-        .update({
+       .from('overtime_logs')
+       .update({
             check_in_time: checkInTimestamp,
             check_out_time: checkOutTimestamp,
             duration_minutes: duration_minutes,
             description: editTimes.description || log.description
           })
-        .eq('id', editingId)
-        .eq('user_id', user.id)
+       .eq('id', editingId)
+       .eq('user_id', user.id)
 
         if (error) throw error
         setSuccessMsg('Time updated successfully')
@@ -291,7 +297,6 @@ export default function Report({ user }) {
     }
   }
 
-  // ✅ NAYA: Delete function
   const handleDelete = async (logId) => {
     if (!confirm('Are you sure you want to delete this overtime entry?')) return
 
@@ -300,10 +305,10 @@ export default function Report({ user }) {
 
     try {
       const { error } = await supabase
-      .from('overtime_logs')
-      .delete()
-      .eq('id', logId)
-      .eq('user_id', user.id)
+     .from('overtime_logs')
+     .delete()
+     .eq('id', logId)
+     .eq('user_id', user.id)
 
       if (error) throw error
 
@@ -663,7 +668,6 @@ export default function Report({ user }) {
                               {log.isPadded? <Plus className="w-4 h-4" /> : <Edit2 className="w-4 h-4" />}
                               <span className="text-xs">{log.isPadded? 'Add' : 'Edit'}</span>
                             </button>
-                            {/* ✅ NAYA: Delete button - sirf real records ke liye */}
                             {!log.isPadded && (
                               <button
                                 onClick={() => handleDelete(log.id)}
