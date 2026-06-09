@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { supabase } from './supabaseClient'
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
-import { FileText, Download, Calendar, Clock, AlertCircle, RefreshCw, User, Save } from 'lucide-react'
+import { FileText, Download, Calendar, Clock, AlertCircle, RefreshCw, User, Save, CheckCircle } from 'lucide-react'
 
 export default function Report({ user }) {
   const [selectedMonth, setSelectedMonth] = useState('')
@@ -34,23 +34,23 @@ export default function Report({ user }) {
   const fetchUserProfile = async () => {
     try {
       const { data, error } = await supabase
-   .from('user_profiles')
-   .select('full_name, employee_id')
-   .eq('user_id', user.id)
-   .single()
+ .from('user_profiles')
+ .select('full_name, employee_id')
+ .eq('user_id', user.id)
+ .single()
 
       if (data) {
         setFullName(data.full_name || '')
         setEmployeeId(data.employee_id || '')
       }
     } catch (err) {
-      console.log('No profile found yet')
+      console.log('No profile found')
     }
   }
 
   const handleSaveProfile = async () => {
     if (!fullName.trim() ||!employeeId.trim()) {
-      setErrorMsg('Full Name aur Employee ID dono required hain')
+      setErrorMsg('Full Name and Employee ID are required')
       setTimeout(() => setErrorMsg(''), 3000)
       return
     }
@@ -61,8 +61,8 @@ export default function Report({ user }) {
 
     try {
       const { error } = await supabase
-   .from('user_profiles')
-   .upsert({
+ .from('user_profiles')
+ .upsert({
       user_id: user.id,
       full_name: fullName.trim(),
       employee_id: employeeId.trim(),
@@ -71,11 +71,11 @@ export default function Report({ user }) {
 
       if (error) throw error
 
-      setSuccessMsg('Profile save ho gaya')
+      setSuccessMsg('Profile saved successfully')
       setTimeout(() => setSuccessMsg(''), 3000)
     } catch (err) {
       console.error(err)
-      setErrorMsg('Profile save nahi hua. Dubara try karo')
+      setErrorMsg(`Failed to save profile: ${err.message}`)
     } finally {
       setSavingProfile(false)
     }
@@ -94,12 +94,12 @@ export default function Report({ user }) {
       const end = `${yearStr}-${monthStr}-${String(lastDay).padStart(2, '0')}`
 
       const { data, error } = await supabase
-   .from('overtime_logs')
-   .select('*')
-   .eq('user_id', user.id)
-   .gte('date', start)
-   .lte('date', end)
-   .order('date', { ascending: true })
+ .from('overtime_logs')
+ .select('*')
+ .eq('user_id', user.id)
+ .gte('date', start)
+ .lte('date', end)
+ .order('date', { ascending: true })
 
       if (error) throw error
 
@@ -120,7 +120,7 @@ export default function Report({ user }) {
         if (logsByDate[dateStr]) {
           logsByDate[dateStr].forEach((log) => {
             fullMonthLogs.push({
-         ...log,
+        ...log,
               isPadded: false,
             })
             totalMins += log.duration_minutes || 0
@@ -174,7 +174,7 @@ export default function Report({ user }) {
 
   const handleDownloadPDF = () => {
     if (!fullName.trim() ||!employeeId.trim()) {
-      setErrorMsg('Pehle Full Name aur Employee ID save karo upar')
+      setErrorMsg('Please save Full Name and Employee ID first')
       setTimeout(() => setErrorMsg(''), 4000)
       return
     }
@@ -205,7 +205,6 @@ export default function Report({ user }) {
       doc.setFillColor(16, 185, 129)
       doc.rect(0, 43, 210, 2, 'F')
 
-      // YAHAN EMAIL HATA DIYA - AB NAME + ID AAYEGA
       doc.setTextColor(51, 65, 85)
       doc.setFontSize(9)
       doc.setFont('helvetica', 'bold')
@@ -222,7 +221,7 @@ export default function Report({ user }) {
         })
 
         if (log.isPadded) {
-          return [dateFormatted, '--', '--', '--', '--', '--']
+          return [dateFormatted, '--', '--', '--']
         }
 
         const checkIn = formatTimeForDisplay(log.check_in_time)
@@ -319,7 +318,8 @@ export default function Report({ user }) {
         </div>
 
         {successMsg && (
-          <div className="mt-4 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-sm">
+          <div className="mt-4 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-sm flex items-center gap-2">
+            <CheckCircle className="w-5 h-5" />
             {successMsg}
           </div>
         )}
@@ -368,7 +368,6 @@ export default function Report({ user }) {
             <div className="text-3xl font-black text-emerald-400 font-mono">
               {formatMinutes(totalMinutes)}
             </div>
-          </div>
           <div className="p-3 bg-emerald-500/10 rounded-2xl border border-emerald-500/20">
             <Clock className="w-6 h-6 text-emerald-400" />
           </div>
