@@ -16,6 +16,7 @@ export default function Report({ user }) {
   const [fullName, setFullName] = useState('')
   const [employeeId, setEmployeeId] = useState('')
   const [savingProfile, setSavingProfile] = useState(false)
+  const [profileLoading, setProfileLoading] = useState(true)
 
   useEffect(() => {
     const today = new Date()
@@ -23,7 +24,7 @@ export default function Report({ user }) {
     const mm = String(today.getMonth() + 1).padStart(2, '0')
     setSelectedMonth(`${yyyy}-${mm}`)
     fetchUserProfile()
-  }, [])
+  }, [user])
 
   useEffect(() => {
     if (selectedMonth && user) {
@@ -32,19 +33,27 @@ export default function Report({ user }) {
   }, [selectedMonth, user])
 
   const fetchUserProfile = async () => {
+    if (!user?.id) return
+    setProfileLoading(true)
     try {
       const { data, error } = await supabase
- .from('user_profiles')
- .select('full_name, employee_id')
- .eq('user_id', user.id)
- .single()
+.from('user_profiles')
+.select('full_name, employee_id')
+.eq('user_id', user.id)
+.maybeSingle()
+
+      if (error) throw error
 
       if (data) {
         setFullName(data.full_name || '')
         setEmployeeId(data.employee_id || '')
       }
     } catch (err) {
-      console.log('No profile found')
+      console.error('Profile fetch error:', err)
+      setErrorMsg(`Failed to load profile: ${err.message}`)
+      setTimeout(() => setErrorMsg(''), 4000)
+    } finally {
+      setProfileLoading(false)
     }
   }
 
@@ -61,8 +70,8 @@ export default function Report({ user }) {
 
     try {
       const { error } = await supabase
- .from('user_profiles')
- .upsert({
+.from('user_profiles')
+.upsert({
       user_id: user.id,
       full_name: fullName.trim(),
       employee_id: employeeId.trim(),
@@ -74,8 +83,9 @@ export default function Report({ user }) {
       setSuccessMsg('Profile saved successfully')
       setTimeout(() => setSuccessMsg(''), 3000)
     } catch (err) {
-      console.error(err)
+      console.error('Save error:', err)
       setErrorMsg(`Failed to save profile: ${err.message}`)
+      setTimeout(() => setErrorMsg(''), 4000)
     } finally {
       setSavingProfile(false)
     }
@@ -94,12 +104,12 @@ export default function Report({ user }) {
       const end = `${yearStr}-${monthStr}-${String(lastDay).padStart(2, '0')}`
 
       const { data, error } = await supabase
- .from('overtime_logs')
- .select('*')
- .eq('user_id', user.id)
- .gte('date', start)
- .lte('date', end)
- .order('date', { ascending: true })
+.from('overtime_logs')
+.select('*')
+.eq('user_id', user.id)
+.gte('date', start)
+.lte('date', end)
+.order('date', { ascending: true })
 
       if (error) throw error
 
@@ -120,7 +130,7 @@ export default function Report({ user }) {
         if (logsByDate[dateStr]) {
           logsByDate[dateStr].forEach((log) => {
             fullMonthLogs.push({
-        ...log,
+       ...log,
               isPadded: false,
             })
             totalMins += log.duration_minutes || 0
@@ -221,7 +231,7 @@ export default function Report({ user }) {
         })
 
         if (log.isPadded) {
-          return [dateFormatted, '--', '--', '--']
+          return [dateFormatted, '--', '--', '--', '--', '--']
         }
 
         const checkIn = formatTimeForDisplay(log.check_in_time)
@@ -276,6 +286,7 @@ export default function Report({ user }) {
         <div className="flex items-center gap-3 mb-6">
           <User className="w-6 h-6 text-emerald-400" />
           <h2 className="text-xl font-bold text-slate-100">Employee Details</h2>
+          {profileLoading && <RefreshCw className="w-4 h-4 text-emerald-400 animate-spin" />}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -286,7 +297,8 @@ export default function Report({ user }) {
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
               placeholder="Ali Khan"
-              className="w-full bg-slate-900 border border-slate-800 rounded-xl py-3 px-4 text-slate-100 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition duration-200"
+              disabled={profileLoading}
+              className="w-full bg-slate-900 border border-slate-800 rounded-xl py-3 px-4 text-slate-100 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition duration-200 disabled:opacity-50"
             />
           </div>
 
@@ -297,14 +309,15 @@ export default function Report({ user }) {
               value={employeeId}
               onChange={(e) => setEmployeeId(e.target.value)}
               placeholder="EMP-001"
-              className="w-full bg-slate-900 border border-slate-800 rounded-xl py-3 px-4 text-slate-100 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition duration-200"
+              disabled={profileLoading}
+              className="w-full bg-slate-900 border border-slate-800 rounded-xl py-3 px-4 text-slate-100 focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition duration-200 disabled:opacity-50"
             />
           </div>
 
           <div className="flex items-end">
             <button
               onClick={handleSaveProfile}
-              disabled={savingProfile}
+              disabled={savingProfile || profileLoading}
               className="w-full flex items-center justify-center gap-2 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 font-bold py-3 px-6 rounded-xl transition duration-300 border border-emerald-500/30 disabled:opacity-50"
             >
               {savingProfile? (
@@ -368,6 +381,7 @@ export default function Report({ user }) {
             <div className="text-3xl font-black text-emerald-400 font-mono">
               {formatMinutes(totalMinutes)}
             </div>
+          </div>
           <div className="p-3 bg-emerald-500/10 rounded-2xl border border-emerald-500/20">
             <Clock className="w-6 h-6 text-emerald-400" />
           </div>
