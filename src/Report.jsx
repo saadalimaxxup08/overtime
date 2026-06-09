@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { supabase } from './supabaseClient'
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
@@ -16,7 +16,6 @@ export default function Report({ user }) {
   const [fullName, setFullName] = useState('')
   const [employeeId, setEmployeeId] = useState('')
   const [savingProfile, setSavingProfile] = useState(false)
-  const [profileLoading, setProfileLoading] = useState(true)
 
   // Edit/Add states
   const [editingId, setEditingId] = useState(null)
@@ -24,13 +23,20 @@ export default function Report({ user }) {
   const [savingEdit, setSavingEdit] = useState(false)
   const [deletingId, setDeletingId] = useState(null)
 
+  const profileFetched = useRef(false)
+
   useEffect(() => {
     const today = new Date()
     const yyyy = today.getFullYear()
     const mm = String(today.getMonth() + 1).padStart(2, '0')
     setSelectedMonth(`${yyyy}-${mm}`)
-    if (user?.id) fetchUserProfile()
-  }, []) // ✅ FIXED: [user] ki jagah [] - sirf 1 bar chalega
+
+    // Sirf 1 bar profile fetch karo
+    if (user?.id &&!profileFetched.current) {
+      profileFetched.current = true
+      fetchUserProfile()
+    }
+  }, [])
 
   useEffect(() => {
     if (selectedMonth && user) {
@@ -39,11 +45,7 @@ export default function Report({ user }) {
   }, [selectedMonth, user])
 
   const fetchUserProfile = async () => {
-    if (!user?.id) {
-      setProfileLoading(false)
-      return
-    }
-    setProfileLoading(true)
+    if (!user?.id) return
     setErrorMsg('')
 
     try {
@@ -60,8 +62,8 @@ export default function Report({ user }) {
         setEmployeeId(data.employee_id || '')
       } else {
         await supabase
-       .from('user_profiles')
-       .insert({ user_id: user.id, full_name: '', employee_id: '', role: 'user' })
+      .from('user_profiles')
+      .insert({ user_id: user.id, full_name: '', employee_id: '', role: 'user' })
         setFullName('')
         setEmployeeId('')
       }
@@ -69,8 +71,6 @@ export default function Report({ user }) {
       console.error('Profile fetch error:', err)
       setErrorMsg(`Failed to load profile: ${err.message}`)
       setTimeout(() => setErrorMsg(''), 4000)
-    } finally {
-      setProfileLoading(false)
     }
   }
 
@@ -87,8 +87,8 @@ export default function Report({ user }) {
 
     try {
       const { error } = await supabase
-     .from('user_profiles')
-     .upsert({
+    .from('user_profiles')
+    .upsert({
           user_id: user.id,
           full_name: fullName.trim(),
           employee_id: employeeId.trim(),
@@ -121,12 +121,12 @@ export default function Report({ user }) {
       const end = `${yearStr}-${monthStr}-${String(lastDay).padStart(2, '0')}`
 
       const { data, error } = await supabase
-     .from('overtime_logs')
-     .select('*')
-     .eq('user_id', user.id)
-     .gte('date', start)
-     .lte('date', end)
-     .order('date', { ascending: true })
+    .from('overtime_logs')
+    .select('*')
+    .eq('user_id', user.id)
+    .gte('date', start)
+    .lte('date', end)
+    .order('date', { ascending: true })
 
       if (error) throw error
 
@@ -147,7 +147,7 @@ export default function Report({ user }) {
         if (logsByDate[dateStr]) {
           logsByDate[dateStr].forEach((log) => {
             fullMonthLogs.push({
-           ...log,
+          ...log,
               isPadded: false,
             })
             totalMins += log.duration_minutes || 0
@@ -254,8 +254,8 @@ export default function Report({ user }) {
 
       if (isPadded) {
         const { error } = await supabase
-       .from('overtime_logs')
-       .insert({
+      .from('overtime_logs')
+      .insert({
             user_id: user.id,
             date: log.date,
             check_in_time: checkInTimestamp,
@@ -268,15 +268,15 @@ export default function Report({ user }) {
         setSuccessMsg('Time added successfully')
       } else {
         const { error } = await supabase
-       .from('overtime_logs')
-       .update({
+      .from('overtime_logs')
+      .update({
             check_in_time: checkInTimestamp,
             check_out_time: checkOutTimestamp,
             duration_minutes: duration_minutes,
             description: editTimes.description || log.description
           })
-       .eq('id', editingId)
-       .eq('user_id', user.id)
+      .eq('id', editingId)
+      .eq('user_id', user.id)
 
         if (error) throw error
         setSuccessMsg('Time updated successfully')
@@ -302,10 +302,10 @@ export default function Report({ user }) {
 
     try {
       const { error } = await supabase
-     .from('overtime_logs')
-     .delete()
-     .eq('id', logId)
-     .eq('user_id', user.id)
+    .from('overtime_logs')
+    .delete()
+    .eq('id', logId)
+    .eq('user_id', user.id)
 
       if (error) throw error
 
@@ -425,7 +425,6 @@ export default function Report({ user }) {
         <div className="flex items-center gap-3 mb-6">
           <User className="w-6 h-6 text-emerald-400" />
           <h2 className="text-xl font-bold text-slate-100">Employee Details</h2>
-          {profileLoading && <RefreshCw className="w-4 h-4 text-emerald-400 animate-spin" />}
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
