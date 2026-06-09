@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { supabase } from './supabaseClient'
 import { jsPDF } from 'jspdf'
 import autoTable from 'jspdf-autotable'
-import { FileText, Download, Calendar, Clock, AlertCircle, RefreshCw, User, Save, CheckCircle, Edit2, X } from 'lucide-react'
+import { FileText, Download, Calendar, Clock, AlertCircle, RefreshCw, User, Save, CheckCircle, Edit2, X, Plus } from 'lucide-react'
 
 export default function Report({ user }) {
   const [selectedMonth, setSelectedMonth] = useState('')
@@ -18,9 +18,9 @@ export default function Report({ user }) {
   const [savingProfile, setSavingProfile] = useState(false)
   const [profileLoading, setProfileLoading] = useState(true)
 
-  // Edit states
+  // Edit/Add states
   const [editingId, setEditingId] = useState(null)
-  const [editTimes, setEditTimes] = useState({ check_in_time: '', check_out_time: '' })
+  const [editTimes, setEditTimes] = useState({ check_in_time: '', check_out_time: '', description: '' })
   const [savingEdit, setSavingEdit] = useState(false)
 
   useEffect(() => {
@@ -29,7 +29,7 @@ export default function Report({ user }) {
     const mm = String(today.getMonth() + 1).padStart(2, '0')
     setSelectedMonth(`${yyyy}-${mm}`)
     fetchUserProfile()
-  }, [user])
+  }, )
 
   useEffect(() => {
     if (selectedMonth && user) {
@@ -135,7 +135,7 @@ export default function Report({ user }) {
         if (logsByDate[dateStr]) {
           logsByDate[dateStr].forEach((log) => {
             fullMonthLogs.push({
-      ...log,
+     ...log,
               isPadded: false,
             })
             totalMins += log.duration_minutes || 0
@@ -190,15 +190,16 @@ export default function Report({ user }) {
   const startEdit = (log) => {
     setEditingId(log.id)
     setEditTimes({
-      check_in_time: log.check_in_time || '',
-      check_out_time: log.check_out_time || ''
+      check_in_time: log.check_in_time || '18:00',
+      check_out_time: log.check_out_time || '20:00',
+      description: log.description === 'No overtime logged'? '' : log.description || ''
     })
     setErrorMsg('')
   }
 
   const cancelEdit = () => {
     setEditingId(null)
-    setEditTimes({ check_in_time: '', check_out_time: '' })
+    setEditTimes({ check_in_time: '', check_out_time: '', description: '' })
   }
 
   const saveEdit = async () => {
@@ -213,6 +214,7 @@ export default function Report({ user }) {
 
     try {
       const log = reportLogs.find(l => l.id === editingId)
+      const isPadded = log.isPadded
 
       const start = new Date(`${log.date}T${editTimes.check_in_time}`)
       const end = new Date(`${log.date}T${editTimes.check_out_time}`)
@@ -229,25 +231,44 @@ export default function Report({ user }) {
         return
       }
 
-      const { error } = await supabase
-       .from('overtime_logs')
-       .update({
-          check_in_time: editTimes.check_in_time,
-          check_out_time: editTimes.check_out_time,
-          duration_minutes: duration_minutes
-        })
-       .eq('id', editingId)
-       .eq('user_id', user.id)
+      if (isPadded) {
+        // INSERT new record for padded date
+        const { error } = await supabase
+        .from('overtime_logs')
+        .insert({
+            user_id: user.id,
+            date: log.date,
+            check_in_time: editTimes.check_in_time,
+            check_out_time: editTimes.check_out_time,
+            duration_minutes: duration_minutes,
+            description: editTimes.description || 'Manual entry'
+          })
 
-      if (error) throw error
+        if (error) throw error
+        setSuccessMsg('Time added successfully')
+      } else {
+        // UPDATE existing record
+        const { error } = await supabase
+        .from('overtime_logs')
+        .update({
+            check_in_time: editTimes.check_in_time,
+            check_out_time: editTimes.check_out_time,
+            duration_minutes: duration_minutes,
+            description: editTimes.description || log.description
+          })
+        .eq('id', editingId)
+        .eq('user_id', user.id)
 
-      setSuccessMsg('Time updated successfully')
+        if (error) throw error
+        setSuccessMsg('Time updated successfully')
+      }
+
       setTimeout(() => setSuccessMsg(''), 3000)
       cancelEdit()
       fetchReportData()
     } catch (err) {
-      console.error('Update error:', err)
-      setErrorMsg(`Failed to update time: ${err.message}`)
+      console.error('Save error:', err)
+      setErrorMsg(`Failed to save: ${err.message}`)
       setTimeout(() => setErrorMsg(''), 4000)
     } finally {
       setSavingEdit(false)
@@ -558,38 +579,47 @@ export default function Report({ user }) {
                     <td className={`font-mono font-bold text-right ${log.duration_minutes > 0? 'text-emerald-400' : 'text-slate-600'}`}>
                       {log.isPadded? '--' : log.duration_minutes? formatMinutes(log.duration_minutes) : '0h 0m'}
                     </td>
-                    <td className={`pl-6 max-w-[180px] truncate text-xs ${log.isPadded? 'text-slate-600' : 'text-slate-400'}`}>
-                      {log.isPadded? '--' : log.description || '-'}
+                    <td className={`pl-6 max-w-[180px] text-xs ${log.isPadded? 'text-slate-600' : 'text-slate-400'}`}>
+                      {editingId === log.id? (
+                        <input
+                          type="text"
+                          value={editTimes.description}
+                          onChange={(e) => setEditTimes({...editTimes, description: e.target.value})}
+                          placeholder="Task description"
+                          className="bg-slate-900 border border-emerald-500 rounded px-2 py-1 text-xs w-full"
+                        />
+                      ) : (
+                        <div className="truncate">{log.isPadded? '--' : log.description || '-'}</div>
+                      )}
                     </td>
                     <td className="text-center">
-                      {!log.isPadded && (
-                        <div className="flex items-center justify-center gap-2">
-                          {editingId === log.id? (
-                            <>
-                              <button
-                                onClick={saveEdit}
-                                disabled={savingEdit}
-                                className="text-emerald-400 hover:text-emerald-300 text-sm font-bold disabled:opacity-50"
-                              >
-                                {savingEdit? 'Saving...' : 'Save'}
-                              </button>
-                              <button
-                                onClick={cancelEdit}
-                                className="text-slate-500 hover:text-slate-400"
-                              >
-                                <X className="w-4 h-4" />
-                              </button>
-                            </>
-                          ) : (
+                      <div className="flex items-center justify-center gap-2">
+                        {editingId === log.id? (
+                          <>
                             <button
-                              onClick={() => startEdit(log)}
-                              className="text-cyan-400 hover:text-cyan-300"
+                              onClick={saveEdit}
+                              disabled={savingEdit}
+                              className="text-emerald-400 hover:text-emerald-300 text-sm font-bold disabled:opacity-50"
                             >
-                              <Edit2 className="w-4 h-4" />
+                              {savingEdit? 'Saving...' : 'Save'}
                             </button>
-                          )}
-                        </div>
-                      )}
+                            <button
+                              onClick={cancelEdit}
+                              className="text-slate-500 hover:text-slate-400"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </>
+                        ) : (
+                          <button
+                            onClick={() => startEdit(log)}
+                            className="text-cyan-400 hover:text-cyan-300 flex items-center gap-1"
+                          >
+                            {log.isPadded? <Plus className="w-4 h-4" /> : <Edit2 className="w-4 h-4" />}
+                            <span className="text-xs">{log.isPadded? 'Add' : 'Edit'}</span>
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
