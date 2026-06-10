@@ -1,7 +1,10 @@
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap');
-@import "tailwindcss";
 
-@theme {
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
   --font-sans: 'Outfit', 'Inter', sans-serif;
   
   /* Custom colors and themes */
@@ -12,7 +15,7 @@
 @layer base {
   body {
     background-color: var(--color-slate-950);
-    color: var(--color-slate-100);
+    color: #f1f5f9;
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -37,13 +40,13 @@
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--color-slate-800);
+  background: #1e293b;
   border-radius: 9999px;
   transition: background-color 0.2s;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--color-slate-700);
+  background: #334155;
 }
 
 /* Glassmorphism utility */
