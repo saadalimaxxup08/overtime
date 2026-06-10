@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, Link, useLocation } from 'react-router-dom'
-import { supabase } from './supabase'
+import { supabase } from './supabaseClient'
 import Login from './login'
 import Dashboard from './dashboard'
 import History from './history'
@@ -44,7 +44,7 @@ function AppLayout({ children, user }) {
               to={item.path}
               className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200 ${
                 isActive(item.path)
-                ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+               ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
                   : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/50'
               }`}
             >
