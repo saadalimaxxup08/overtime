@@ -7,10 +7,10 @@ import History from './History'
 import Report from './Report'
 import { LayoutDashboard, History as HistoryIcon, FileText, LogOut, Clock, User } from 'lucide-react'
 
-// Layout component with premium responsive navigation (Sidebar/Header on desktop, Bottom Nav on mobile)
+// Layout component with premium responsive navigation
 function AppLayout({ children, user }) {
   const location = useLocation()
-  
+
   const handleLogout = async () => {
     await supabase.auth.signOut()
   }
@@ -44,7 +44,7 @@ function AppLayout({ children, user }) {
               to={item.path}
               className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200 ${
                 isActive(item.path)
-                  ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                 ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
                   : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/50'
               }`}
             >
@@ -54,7 +54,7 @@ function AppLayout({ children, user }) {
           ))}
         </nav>
 
-        {/* Logged in User Badge & Logout Button (Desktop) */}
+        {/* Logged in User Badge & Logout Button */}
         <div className="flex items-center gap-4">
           <div className="hidden lg:flex items-center gap-2 bg-slate-900/60 border border-slate-800 px-3.5 py-1.5 rounded-full text-slate-400 text-xs font-semibold">
             <User className="w-3.5 h-3.5 text-cyan-400" />
@@ -75,7 +75,7 @@ function AppLayout({ children, user }) {
         {children}
       </main>
 
-      {/* Mobile Bottom Navigation Bar (Sticky Tabs) */}
+      {/* Mobile Bottom Navigation Bar */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-slate-950/90 backdrop-blur-lg border-t border-slate-900/80 px-4 py-2 flex justify-around items-center">
         {navItems.map((item) => {
           const ActiveIcon = item.icon
@@ -85,10 +85,10 @@ function AppLayout({ children, user }) {
               key={item.name}
               to={item.path}
               className={`flex flex-col items-center gap-1.5 py-1 px-3 rounded-xl transition duration-200 ${
-                active ? 'text-emerald-400 scale-105' : 'text-slate-500 hover:text-slate-300'
+                active? 'text-emerald-400 scale-105' : 'text-slate-500 hover:text-slate-300'
               }`}
             >
-              <ActiveIcon className={`w-5.5 h-5.5 ${active ? 'text-emerald-400' : 'text-slate-500'}`} />
+              <ActiveIcon className={`w-5.5 h-5.5 ${active? 'text-emerald-400' : 'text-slate-500'}`} />
               <span className="text-[10px] font-bold tracking-wider">{item.name}</span>
             </Link>
           )
@@ -103,13 +103,11 @@ export default function App() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // 1. Fetch initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session)
       setLoading(false)
     })
 
-    // 2. Listen for auth state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session)
       setLoading(false)
@@ -135,53 +133,50 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Public Route */}
-        <Route 
-          path="/login" 
-          element={!session ? <Login /> : <Navigate to="/" replace />} 
+        <Route
+          path="/login"
+          element={!session? <Login /> : <Navigate to="/" replace />}
         />
-        
-        {/* Private Routes */}
-        <Route 
-          path="/" 
+
+        <Route
+          path="/"
           element={
-            session ? (
+            session? (
               <AppLayout user={session.user}>
                 <Dashboard user={session.user} />
               </AppLayout>
             ) : (
               <Navigate to="/login" replace />
             )
-          } 
+          }
         />
-        
-        <Route 
-          path="/history" 
+
+        <Route
+          path="/history"
           element={
-            session ? (
+            session? (
               <AppLayout user={session.user}>
                 <History user={session.user} />
               </AppLayout>
             ) : (
               <Navigate to="/login" replace />
             )
-          } 
+          }
         />
-        
-        <Route 
-          path="/report" 
+
+        <Route
+          path="/report"
           element={
-            session ? (
+            session? (
               <AppLayout user={session.user}>
                 <Report user={session.user} />
               </AppLayout>
             ) : (
               <Navigate to="/login" replace />
             )
-          } 
+          }
         />
 
-        {/* Fallback redirect */}
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </BrowserRouter>
