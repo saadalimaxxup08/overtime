@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, Link, useLocation } from 'react-router-dom'
 import { supabase } from './supabaseClient'
-import Login from './login'
+import Login from './Login'
 import Dashboard from './dashboard'
 import History from './history'
 import Report from './report'
