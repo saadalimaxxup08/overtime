@@ -3,7 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate, Link, useLocation } from 'react
 import { supabase } from './supabaseClient'
 import Login from './Login'
 import Dashboard from './dashboard'
-import History from './history'
+import History from './History'
 import Report from './report'
 import { LayoutDashboard, History as HistoryIcon, FileText, LogOut, Clock, User } from 'lucide-react'
 
